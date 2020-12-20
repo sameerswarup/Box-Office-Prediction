@@ -1,0 +1,494 @@
+---
+title: "Predicting B.O. revenue post Oscar nomination"
+author: "Eesha Shah & Sameer Swarup"
+date: "12/20/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(stargazer)
+library(broom)
+library(car)
+```
+
+```{r, include=FALSE}
+#Read in data
+oscarBestPicNoms <- read_csv("/cloud/project/oscarBestPicNomsProper - oscarBestPicNomsProper.csv")
+IMDbAGE <- read_csv("/cloud/project/AvgIMDbAGE.csv")
+```
+
+```{r, echo=FALSE, results='hide'}
+#Data Cleaning
+oscarBestPicNoms$budget <- gsub(",","",oscarBestPicNoms$budget)
+oscarBestPicNoms$budget <- gsub("[$]","",oscarBestPicNoms$budget)
+
+oscarBestPicNoms$usa_gross_income <- gsub(",","",oscarBestPicNoms$usa_gross_income)
+oscarBestPicNoms$usa_gross_income <- gsub("[$]","",oscarBestPicNoms$usa_gross_income)
+
+oscarBestPicNoms$worlwide_gross_income <- gsub(",","",oscarBestPicNoms$worlwide_gross_income)
+oscarBestPicNoms$worlwide_gross_income <- gsub("[$]","",oscarBestPicNoms$worlwide_gross_income)
+```
+
+```{r, echo=FALSE, results='hide'}
+#Convert budget and income cols to numeric
+oscarBestPicNoms$budget <- as.numeric(oscarBestPicNoms$budget)
+oscarBestPicNoms$usa_gross_income <- as.numeric(oscarBestPicNoms$usa_gross_income)
+oscarBestPicNoms$worlwide_gross_income <- as.numeric(oscarBestPicNoms$worlwide_gross_income)
+```
+
+```{r, echo=FALSE, results='hide'}
+#Convert budget and income cols to thousands of $
+oscarBestPicNoms$budget <- oscarBestPicNoms$budget/1000
+oscarBestPicNoms$usa_gross_income <- oscarBestPicNoms$usa_gross_income/1000
+oscarBestPicNoms$worlwide_gross_income <- oscarBestPicNoms$worlwide_gross_income/1000
+oscarBestPicNoms$Weekend_gross_before <- oscarBestPicNoms$Weekend_gross_before/1000
+oscarBestPicNoms$Weekend_gross_after <- oscarBestPicNoms$Weekend_gross_after/1000
+oscarBestPicNoms$difference_weekend_gross <- oscarBestPicNoms$difference_weekend_gross/1000
+```
+
+```{r, echo=FALSE, results='hide'}
+oscarBestPicNoms <- oscarBestPicNoms %>% filter(oscarBestPicNoms$percentdifference_weekend_gross >0)
+oscarBestPicNoms <- oscarBestPicNoms %>% filter(oscarBestPicNoms$`Theater change` < 2000)
+```
+
+```{r, echo=FALSE, results='hide'}
+oscarBestPicNoms$logBudget <- log(oscarBestPicNoms$budget)
+oscarBestPicNoms$logGross <-log(oscarBestPicNoms$worlwide_gross_income)
+```
+\begin{center}
+\textbf{Abstract}
+\end{center}
+
+A Best Picture Oscar nomination brings both prestige and name recognition to a film. In this paper, we model the change in a film’s weekend gross box office after being nominated for a Best Picture Oscar Nomination and determine the monetary impact of the nomination. Using statistical and theoretical reasoning, we find that the relevant predictors are the number of days since a film’s release, the change in the number of theaters it is being shown at, its budget, worldwide box office gross, its Metascore, and its average IMDb rating. We find that there is a positive immediate effect of $1,623,470 for a film’s weekend box office income after being nominated for a Best Picture Oscar, but this prediction is accompanied by a large standard error. Future studies could expand on how this effect changes through time as the role of theaters diminishes in the movie industry.
+
+\begin{center}
+\textbf{Introduction}
+\end{center}
+
+The Oscars are seen as the movie industry’s most prestigious awards showcase, with the Best Picture Oscar being the most coveted prize you can win. Thus, it is worthwhile to explore the monetary impact of being nominated for a Best Picture Oscar. We intend to model the effect of a Best Picture Oscar nomination on movies using a sample which includes  released from 2010 to  2019. Our model will also include various other explanatory variables which impact a movie’s gross income.
+
+\begin{center}
+\textbf{Theory}
+\end{center}
+
+Since an Oscar nomination brings recognition and credibility to a film, we think that it is reasonable to expect that in the weekend following the Oscar nominations announcement, a greater number of moviegoers will choose to view a film than in the weekend before. Due to the credibility which an Oscar nomination brings to a film, we believe there is an increased willingness to pay resulting in a positive shift in the demand curve for the movie. Based on this shift, we hypothesize that a Best Picture Oscar nomination has an immediate positive monetary impact on a film’s box office income. 
+
+In order to measure how much a movie makes prior to and following the Best Picture Oscar nomination, we will be using weekend box office gross of the weekends before and after the nominations are announced. Weekend box office allows us to measure a movie’s income for a set period of time regardless of at what point in the week Oscar nominations are announced. Box office sales are also consistently the highest on weekends since most people will choose to see movies on weekends. Our dependent variable will be the difference between the weekend box office gross following a Best Picture Oscar Nomination and the weekend box office gross prior to the nomination.
+
+We expect that if we use linear regression to model variables which impact a change in box office income between two weekends, the intercept in our model will demonstrate the change in income between weekends which can be attributed to an Oscar nomination, holding all other variables constant. We will build our model to include factors which we expect to impact the change between box office income of two consecutive weekends apart for an Oscar nomination. The first of these factors is the length of time which a movie has been playing. We expect that a movie’s box office performance will generally decline the longer it has been in theaters as it receives less word of mouth and advertising. The second factor which we expect to impact a change from before and after a Best Picture Oscar nomination, is the size and initial recognizability of a film. We expect that smaller films which receive less advertising and word of mouth will experience a larger positive shift in demand in consequence of an Oscar nomination. The third factor we expect to impact the change in weekend box office gross is the change in theaters screening a film after it secures the nomination, as the more theaters that choose to screen a film, the more visible and accessible the film will be, increasing its demand. Lastly, we have a few variables that detail the summary ratings of a film, which we also believe will be significant predictors of the change in weekend box office gross of a film that has secured a nomination as higher ratings means the film is more likely to be viewed as a good product, increasing its demand. 
+
+
+\begin{center}
+\textbf{Data Description}
+\end{center}
+
+Our dataset was sourced from Kaggle and Box Office Mojo, after which we filtered out movies that were released before 2010. We chose to only examine films in the decade from 2010 to 2019 as 2010 was the first year the Oscars expanded the number of Best Picture nominated films to increase from 5 to 10. Additionally, 2010 was also the first year the "average cost of admission to a movie theater ever jumped the $8 mark." (McClintock, 2011). Thus, to control for the inflation of ticket prices, we felt it was reasonable to examine films released in 2010 and onwards. We also filtered out movies whose release dates were after the Oscar nominations date, as including them would be unreasonable since there would be no weekend box office increase to report on. This left our final dataset with 53 observations.
+
+We will be testing the following explanatory variables for their impact on change in weekend box office gross income: 
+
+1. Best Picture award. This will be a dummy variable with 1 denoting a film that went on to win a Best Picture award and 0 denoting a film that did not win the award. We predict that this variable will not have a statistically significant impact on a movie's weekend box office gross after nomination as at the time of nomination, it is highly unlikely for consumers to be able to predict which film will go on to win the award, mitigating any financial gain a Best Picture nominated film may have for its future win. 
+
+2. The number of days between a movie’s release and the Oscar nominations date. We predict that the longer the gap between a movie's release and nominations date, the smaller the increase, if any, in weekend box office gross after the film has been nominated. This is due to the "front-loaded nature of films" (Nash, 1997), where the vast majority of films make the bulk of their lifetime earnings in their opening weekend and the fact that the longer films stay in theaters, the more susceptible they are to being drowned out by other, newer films, decreasing their demand. We will be measuring this variable in days. 
+
+3. The change in number of theaters screening a movie from the weekend prior to the weekend following Oscar nominations. We predict for this variable to have a statistically significant impact on a movie's weekend box office gross post Oscar nomination since if a greater number of theaters are showing a movie, the movie will be a lot more accessible and visible, increasing its demand. Thus will be measuered in number of theaters.
+
+4. The budget of a movie. We will take the natural logarithm of this variable due to the wide scale of budgets present in our dataset, ranging from 4 million to 120 million dollars. We predict that the budget of a movie will be a good predictor of the impact a Best Picture nomination has on a movie's weekend box office gross, as movies with smaller budgets stand to gain the most from a Best Picture nomination as the smaller a movie's budget, the smaller its advertising campaign. Thus, securing a Best Picture Oscar nomination means these films will be able to boost their advertising and make themselves more visible to the moviegoing audience, increasing demand. We will be measuring this variable in thousands of dollars.
+
+5. The worldwide gross income of a movie. We will also take the natural logarithm of this variable due to the wide scale of worldwide grosses present in our dataset, ranging from 30 million dollars to 1 billion dollars. For the same reason as budget, we predict that this will be a statistically significant predictor of the impact a Best Picture nomination has on a movie's weekend box office gross as movies with a smaller worldwide box office gross stand to gain more from a Best Picture nomination due to the nomination being a symbol of quality, increasing the demand for the movie. We will be measuring this variable in thousands of dollars.
+
+6.The Metascore of a movie. This variable details the score each movie received from the popular review aggregator website Metacritic. We predict that this variable will be a statistically significant predictor of the impact a Best Picture nomination has on a movie's weekend box office gross as much like the Best Picture nomination, a high Metascore is a symbol of a movie's quality. Additionally, it is easily accessible as all a consumer has to do is lookup a recently nominated film and they will find its Metascore as one of the first few search results. Thus, a Best Picture nomination coupled with a high Metascore will increase the demand for a movie due to its perceived quality. 
+
+7.The IMDb rating of a movie. This variable details the IMDb rating each movie received from the popular user review aggregator website IMDb. Much like Metascore, we predict that this variable will be a statistically significant predictor of the impact a Best Picture nomination has on a movie's weekend box office gross as much like a Best Picture nomination and Metascore, a high IMDb rating is a symbol of a movie's quality. Additionally, it is just as easy to access as a movie's Metascore. Thus, a Best Picture nomination coupled with a high IMDb rating will increase the demand for a movie due to its perceived quality.
+
+The following four variables detail a movie's IMDb rating based on the demographic of age. For all four of these variables, we predict that they will not be statistically significant predictors of the impact a Best Picture nomination has on a movie's weekend box office gross as unlike Metascore and IMDb rating, the breakdown of how IMDb users voted on a film based on their age is not a statistic that is easily accessible nor is it a statistic that is as often cited as Metascore or IMDb rating. Thus, we predict that the vast majority of consumers will have no interest in analyzing how a movie performed on IMDb with consumers of different ages, causing it to have little to no influence on a movie's demand. The four variables are:
+
+8. IMDb rating for viewers under the age of 18
+9. IMDb rating for viewers between 18 and 30 years of age 
+10. IMDb rating for viewers between 30 and 45 years of age
+11. IMDb rating for viewers over 45 years of age
+
+
+
+\begin{center}
+\textbf{Regression Analysis}
+\end{center}
+
+We will start by fitting our initial OLS model with all the explanatory variables detailed above under the assumptions of BLUE laid out by the Gauss-Markov Theorem which will allow us to linearly regress our model on the variable of difference in weekend gross:
+
+\begin{center}
+Difference in Weekend gross 
+= $\beta_0 + \beta_1*Winner + \beta_2*Days + \beta_3*$Theater change $+ \beta_4*$IMDb score $+\beta_5*$log(budget) + $+\beta_6*$log(Worldwide gross) $+\beta_7*$Metascore 
+$+\beta_8*$ Avg vote by consumers under 18 
+$+\beta_{9}*$ Avg vote by consumers between 18 and 30 
+$+\beta_{10}*$ Avg vote by consumers between 30 and 45 
+$+\beta_{11}*$ Avg vote by consumers over 45
+
+\end{center}
+```{r, echo=FALSE, results='hide'}
+#Fit in initial model 
+initial.lm <- lm(data = oscarBestPicNoms, difference_weekend_gross ~ winner + days_between + `Theater change` + avg_vote + logBudget + logGross + metascore + allgenders_0age_avg_vote + allgenders_18age_avg_vote + allgenders_30age_avg_vote + allgenders_45age_avg_vote)
+```
+
+Our initial model has a adjusted $R^2$ value of 0.6139, which means that currently our model explains 61.39% of the variation in the change in weekend box office gross after a film is nominated for a Best Picture Oscar. Before we proceed with our model specification, we must first ensure whether our model meets the assumption of normality.
+
+```{r, echo=FALSE, results='hide'}
+initial.aug <- augment(initial.lm)
+```
+
+```{r, echo=FALSE, results='hide', fig.height=3}
+hist(initial.aug$.resid, main = "Histogram of Residuals", xlab = "Residuals")
+```
+
+```{r,echo=FALSE,fig.height=3,fig.showtext=FALSE}
+ggplot(initial.aug, mapping = aes(sample=.resid))+stat_qq(aes(color = .resid)) + geom_qq_line(color = 'red')+ scale_color_manual(values = "blue") + labs(title = "QQ Plot of residuals")
+```
+
+```{r, echo=FALSE}
+shapiro.test(initial.aug$.resid)
+```
+The histogram shows an skewed right normal distribution of the residuals, centered at 0. The QQ plot has an approximate S-shape, also indicating that the distribution is approximately normal. However, the right tail is longer than the left tail, showing the right-skewedness. Additionally, since the right tail is above the line of best fit, a lot of the outliers are dispersed on the right hand side of the distribution. The p-value of 0.1601 from the Shapiro-Wilks test gives us insufficient evidence to reject the null hypothesis that the residuals are normally distributed.
+
+**Testing for the statistical significance of explanatory variable in initial model**
+
+*Testing for the statistical significance of average IMDb vote by age group:*
+We shall start off by testing the statistical significance of $\beta_8$ through $\beta_{11}$, the average IMDb vote a movie got by age group using a t-test and then analyzing the adjusted $R^2$ value. 
+
+\begin{center}
+$H_0: \beta_{11} = 0, H_A: \beta_{11} \neq 0$
+\end{center}
+
+```{r, echo=FALSE, results='hide'}
+seB11 <- 780.2675
+t_star <- qt(0.975, df = 41)
+lowerBound <- -seB11*t_star
+upperBound <- seB11*t_star
+lowerBound
+upperBound
+```
+
+Our acceptance region, constructed at a 5% level of significance and with 41 degrees of freedom, is: [$-t^{*}se(\beta_{11}^{*})$, $t^{*}se(\beta_{11}^{*})$] which is [-1575.8, 1575.8]. As our estimate for the impact a 1 point increase in average IMDb vote a movie gets from consumers above the age of 45 is in the acceptance region (1020.1), we have insufficient evidence to reject the null hypothesis that the average IMDb vote a movie gets from consumers above the age of 45 does not have a statistically significant impact on its box office gross.
+
+We will further assess the validity of our predictor using an adjusted $R^2$ test. 
+```{r, echo=FALSE, results='hide'}
+#Model without avg IMDb vote for consumers above age of 45
+modelWithout45.lm <- lm(data = oscarBestPicNoms, difference_weekend_gross ~ winner + days_between + `Theater change` + avg_vote + logBudget + logGross + metascore + allgenders_0age_avg_vote + allgenders_18age_avg_vote + allgenders_30age_avg_vote)
+```
+
+```{r, echo=FALSE, results='hide'}
+summary(modelWithout45.lm)
+```
+Our adjusted $R^2$ value only goes up by 0.006. This, coupled with the fact that the predictor has a relatively large standard error with respect to its coefficient and the likelihood that the vast majority of moviegoers will not have access to data that lets them decide if a film appeals to people over the age of 45, leads us to conclude that the average vote a movie receives from consumers above the age of 45 is an insignificant predictor of how well a Best Picture nominated movie will perform after receiving its nomination. Thus, we can omit the predictor from our model.
+
+We shall perform the same tests in the same manner for the other variables that detail the average vote a Best Picture nominated movie received from consumers of a certain age. The following table summarizes the results of the t-tests and the change in the adjusted $R^2$ value of for predictors $\beta_8$ through $\beta_{11}$.
+
+
+```{r, results='asis', echo=FALSE}
+stargazer(IMDbAGE[1:4,], summary=FALSE, rownames=FALSE, title = "Summary of Statistical Testing of Average IMDb Score by Age Group of Viewer")
+```
+
+For each of these predictors, our acceptance region is constructed at a 5% level of significance with 42 degrees of freedom. Our estimates for the impact a 1 point increase in average IMDb vote a movie gets from consumers for each age group falls in its corresponding the acceptance region. Therefore, for all four predictors we have insufficient evidence to reject the null hypothesis that the average IMDb vote a Best Picture nominated movie gets from consumers in each age group does not have a statistically significant impact on its weekend box office gross. 
+
+When we use the adjusted $R^2$ to further validate our findings, we find small changes when the model is restricted to not include each individual predictor. This, along with the fact that the predictors have relatively large standard errors with respect to their coefficients and the likelihood that the vast majority of moviegoers will not have access to data that lets them decide if a film appeals to people in a certain age group, leads us to conclude that these four predictors of average IMDb vote by age group are not statistically and economically significant predictors of how well a Best Picture nominated movie will perform after receiving its nomination. Thus, due to statistical and theoretical reasoning, we can omit these four predictors from our model.
+
+
+We will now move on to testing the statistical significance of the remaining explanatory variables in our model.
+
+\begin{center}
+Difference in Weekend gross 
+= $\beta_0 + \beta_1*Winner + \beta_2*Days + \beta_3*$Theater change $+ \beta_4*$ Mean IMDb score $+\beta_5*$log(budget) + $+\beta_6*$log(Worldwide gross) $+\beta_7*$Metascore
+\end{center}
+
+*Testing Metascore for statistical significance:*
+First, we will test the statistical significance of $\beta_{7}$, the Metascore a movie receives from critics.
+
+\begin{center}
+$H_0: \beta_{7} = 0, H_A: \beta_{7} \neq 0$
+\end{center}
+```{r, echo=FALSE, results='hide'}
+seB7 <- 8.7417
+t_star <- qt(0.975, df = 45)
+lowerBound <- -seB7*t_star
+upperBound <- seB7*t_star
+lowerBound
+upperBound
+```
+Our acceptance region, constructed at a 5% level of significance and 45 degrees of freedom, is: [$-t^{*}se(\beta_{7}^{*})$, $t^{*}se(\beta_{7}^{*})$] which is [-17.6, 17.6]. As our estimate for the impact a 1 point increase in a movie's Metascore is in the acceptance region (10.3), we have insufficient evidence to reject the null hypothesis that the Metascore a Best Picture nominated movie gets does not have a statistically significant impact on its box office gross.
+
+We further tested the significance of Metascore through an adjusted $R^2$ test and found that the adjusted $R^2$ value goes up by 0.003 when Metascore is included. This coupled with its relatively large standard error with respect to its coefficient leads us to conclude that the Metascore of a film is a potentially unreliable predictor of a film's weekend box office performance after it is nominated for a Best Picture Oscar. However, as has been researched many times before, "there is a positive trend between metacritic scores and box office"(Kennedy, 2007), since a high Metascore indicates a movie is well-liked by a vast majority of established film critics and that it is worth the price of admission, increasing its demand. For this theoretical reason, we will be leaving the Metascore variable in the model.
+
+*Testing Worldwide Gross for statistical signficance:*
+We will now pivot our attention to explanatory variables that detail a movie's financial situation. To begin, we will assess the statistical significance of the impact a Best Picture nominated movie's worldwide gross has on its weekend box office gross after it has been nominated for a Best Picture Oscar. Theoretically, we expect that movies with a smaller worldwide box office gross will benefit more from a Best Picture nomination, as it is the smaller and less financially successful films that stand to reap the benefits of a Best Picture nomination box office increase the most.
+
+\begin{center}
+$H_0: \beta_{6} = 0, H_A: \beta_{6} \neq 0$
+\end{center}
+```{r, echo=FALSE, results='hide'}
+seB6 <- 156.8354
+t_star <- qt(0.975, df = 45)
+lowerBound <- -seB6*t_star
+upperBound <- seB6*t_star
+lowerBound
+upperBound
+```
+Our acceptance region, constructed at a 5% level of significance and 45 degrees of freedom, is: [$-t^{*}se(\beta_{6}^{*})$, $t^{*}se(\beta_{6}^{*})$] which is [-315.9, 315.9]. As our estimate for the impact a $1000 increase in a movie's worldwide box office gross is in the critical region (460.1), we have sufficient evidence to reject the null hypothesis that the worldwide box office gross a Best Picture nominated movie gets does not have a statistically significant impact on its box office gross.
+
+Additionally, when we use an adjusted $R^2$ test to further test for the significance of the worldwide box office gross variable, we find our adjusted $R^2$ value goes up by 0.06 when it is included in the model. This, coupled with the results from the hypothesis test and the theoretical reason that smaller films stand to gain more from a Best Picture nomination, leads us to conclude that the variable of worldwide box office gross should be left in the model.
+
+*Testing Movie Budget for statistical significance:*
+The next variable that details a movie's financial situation is log(budget). Theoretically, we expect for movies with smaller budgets to benefit from a Best Picture nomination, as movies with a smaller budget often have smaller marketing campaigns. Thus, securing a Best Picture nomination would give them a boost in their marketing and allow them to advertise themselves to more consumers.
+
+\begin{center}
+$H_0: \beta_{5} = 0, H_A: \beta_{5} \neq 0$
+\end{center}
+```{r, echo=FALSE, results='hide'}
+seB5 <- 143.8651
+t_star <- qt(0.975, df = 45)
+lowerBound <- -seB5*t_star
+upperBound <- seB5*t_star
+lowerBound
+upperBound
+```
+Our acceptance region, constructed at a 5% level of significance and 46 degrees of freedom, is: [$-t^{*}se(\beta_{5}^{*})$, $t^{*}se(\beta_{5}^{*})$] which is [-289.8, 289.8]. As our estimate for the impact a $1000 increase in a movie's worldwide box office gross is in the critical region (-294.6), we have sufficient evidence to reject the null hypothesis that the budget of a Best Picture nominated movie does not have a statistically significant impact on its box office gross.
+
+We further assessed the validity of our predictor using an adjusted $R^2$ test and found that the adjusted $R^2$ value goes up by 0.03 when log(budget) is included. This coupled with the results from the hypothesis test and the theoretical reason for including a budget variable outlined earlier leads us to conclude that the variable of log(budget) should be left in the model.
+
+*Testing average IMDb score for statistical significance:*
+We will test the statistical significance of the last of our aggregate review metrics - average IMDb score. Unlike the variables that detailed how a film performed on IMDb based on the age of the consumer, the average IMDb score is a aggregate review metric that is accessible to moviegoers. Thus, we believe that a higher average IMDb score will increase the demand for a movie, which would mean that much like the variable of worldwide box office gross, movies that have not fared as well on IMDb are likely to benefit more from the attention and credibility a Best Picture nomination gives. 
+
+\begin{center}
+$H_0: \beta_{4} = 0, H_A: \beta_{4} \neq 0$
+\end{center}
+```{r, echo=FALSE, results='hide'}
+seB4 <- 275.8183
+t_star <- qt(0.975, df = 45)
+lowerBound <- -seB4*t_star
+upperBound <- seB4*t_star
+lowerBound
+upperBound
+```
+Our acceptance region, constructed at a 5% level of significance and 45 degrees of freedom, is: [$-t^{*}se(\beta_{4}^{*})$, $t^{*}se(\beta_{4}^{*})$] which is [-555.5, 555.5]. As our estimate for the impact a 1 point increase in a movie's average IMDb score is in the critical region (-664.4), we have sufficient evidence to reject the null hypothesis that the average IMDb score of a Best Picture nominated movie does not have a statistically significant impact on its box office gross.
+
+We further assessed the validity of our predictor using an adjusted $R^2$ test and found that our adjusted $R^2$ value goes up by 0.04 when the average IMDb score is included as a variable. This coupled with the results from the hypothesis test and the theoretical reason for including an average IMDb score variable outlined earlier leads us to conclude that the variable of average IMDb score should be left in the model.
+
+*Testing number of theaters change showing film before and after nomination for statistical signficance:*
+We will now test what is perhaps the most statistically significant of our variables - the change in the number of theaters that screen a film before and after it receives a Best Picture nomination. Theoretically, if there is an increase in the number of theaters screening a film, then the ticket sales for that film will increase as it becomes more accessible and visible to the moviegoing public. 
+
+\begin{center}
+$H_0: \beta_{3} = 0, H_A: \beta_{3} \neq 0$
+\end{center}
+```{r, echo=FALSE, results='hide'}
+seB3 <- 0.2148
+t_star <- qt(0.975, df = 45)
+lowerBound <- -seB3*t_star
+upperBound <- seB3*t_star
+lowerBound
+upperBound
+```
+Our acceptance region, constructed at a 5% level of significance and 45 degrees of freedom, is: [$-t^{*}se(\beta_{3}^{*})$, $t^{*}se(\beta_{3}^{*})$] which is [-0.433, 0.433]. As our estimate for the impact a 1 point increase in a movie's theater change is in the critical region (1.541), we have sufficient evidence to reject the null hypothesis that the theater change of a Best Picture nominated movie does not have a statistically significant impact on its box office gross.
+
+We further assessed the validity of our predictor using an adjusted $R^2$ test and found that our adjusted $R^2$ value goes up by 0.4 when the Theater Change is included as a variable. This coupled with the results from the hypothesis test and the theoretical reason for including an Theater Change variable outlined earlier leads us to conclude that the variable of average Theater Change should be left in the model.
+
+*Testing days between movie release and nomination announcement for statistical significance:*
+The next variable which we will test for statistical significance is the number of days between the release of a movie and the announcement of its Best Picture Oscar Nomination. We theorize that if gross income decreases in a non-linear manner every week after a movie's opening weekend, there may be smaller numerical differences in gross income between weekends which are further away from opening weekend. 
+
+
+\begin{center}
+$H_0: \beta_{2} = 0, H_A: \beta_{2} \neq 0$
+\end{center}
+```{r, echo=FALSE, results='hide'}
+seB2 <- 1.3624
+t_star <- qt(0.975, df = 45)
+lowerBound <- -seB2*t_star
+upperBound <- seB2*t_star
+lowerBound
+upperBound
+```
+Our acceptance region, constructed at a 5% level of significance and 45 degrees of freedom, is: [$-t^{*}se(\beta_{2}^{*})$, $t^{*}se(\beta_{2}^{*})$] which is [-2.74, 2.74]. As our estimate for the impact a 1 day increase in a movie's time between release and nomination is in the critical region (-3.37), we have sufficient evidence to reject the null hypothesis that the the days between these events for a Best Picture nominated movie does not have a statistically significant impact on its box office gross.
+
+We further assessed the validity of our predictor using an adjusted $R^2$ test and found that our adjusted $R^2$ value goes up by 0.04 when the days between release and nomination is included as a variable. This coupled with the results from the hypothesis test and the theoretical reason for including an days between nomination and release variable outlined earlier leads us to conclude that the variable of days between should be left in the model.
+
+*Testing Statistical Significance of Oscar Nomination:*
+The final variable that we will be testing for statistical significance is whether a movie won the Best Picture Oscar after it was nominated. As far as theory goes, we do not think that this should be a relevant variable in our model. We are comparing the two weekend which sandwich an Oscar nomination, at which point it is not decided whether a movie has won the Oscar. We will now conduct a statistical analysis in order to gather a complete idea of if an Oscar win has any impact on the change in income between weekends.
+
+
+\begin{center}
+$H_0: \beta_{1} = 0, H_A: \beta_{1} \neq 0$
+\end{center}
+```{r, echo=FALSE, results='hide'}
+seB1 <-260.549
+t_star <- qt(0.975, df = 45)
+lowerBound <- -seB1*t_star
+upperBound <- seB1*t_star
+lowerBound
+upperBound
+```
+Our acceptance region, constructed at a 5% level of significance and 45 degrees of freedom, is: [$-t^{*}se(\beta_{1}^{*})$, $t^{*}se(\beta_{1}^{*})$] which is [-524.8, 524.8]. As our estimate for the impact of an Best Picture Oscar win is in the acceptance region (386.256), we have sufficient evidence to accept the null hypothesis that a Best Picture win does not have a statistically significant impact on its box office gross.
+
+We further assessed the validity of our predictor using an adjusted $R^2$ test and found that our adjusted $R^2$ value does not change when an Oscar win is included as a variable. This coupled with the results from the hypothesis test and the theoretical reason for including an days between nomination and release variable outlined earlier leads us to conclude that the variable of days between should be left out of the model.
+
+**Testing for Linearity**
+
+Given the "front-loaded nature"(Nash, 1997) of films and the existence of multipliers (the ratio between a film's opening weekend and lifetime box office gross), we think it is possible that the days between a movie's release date and Oscar nominations date could be a non-linear variable. As a result, we shall be performing a RAMSEY reset test at a 5% level of significance to test for the linearity of "days after release" predictor in our model.
+
+\begin{center}
+Our unrestricted model is:
+Difference in Weekend gross 
+= $\beta_0 + \beta_1*Days + \beta_2*$Theater change $+ \beta_3*IMDb$ score $+\beta_4*log(budget)$ + $+\beta_5*$log(Worldwide gross) $+\beta_6*Metascore + \beta_7*Days^{2}$ 
+
+Our restricted PRF model is:
+Difference in Weekend gross 
+= $\beta_0 + \beta_1*Days + \beta_2*$Theater change $+ \beta_3*IMDb$ score $+\beta_4*log(budget)$ + $+\beta_5*$log(Worldwide gross) $+\beta_6*Metascore$ 
+
+Thus, our null and alternative hypotheses are:
+$H_0: \beta_7 = 0, H_A: \beta_7 \neq 0$
+\end{center}
+
+```{r, echo=FALSE}
+oscarBestPicNoms$days_betweenSq <- oscarBestPicNoms$days_between*oscarBestPicNoms$days_between
+```
+
+```{r, echo=FALSE}
+unrestricted.lm <- lm(data = oscarBestPicNoms, difference_weekend_gross ~ days_between + `Theater change` + avg_vote + logBudget + logGross + metascore + days_betweenSq)
+```
+
+```{r, echo=FALSE, results='hide'}
+summary(unrestricted.lm)
+```
+
+```{r, echo=FALSE}
+finalModel.lm <- lm(data = oscarBestPicNoms, difference_weekend_gross ~ days_between + `Theater change` + avg_vote + logBudget + logGross + metascore)
+```
+
+```{r, echo=FALSE, results='hide'}
+UnrestrictedR <- 0.6284
+R <- 0.6336
+num <- UnrestrictedR - R
+denom <- (1 - UnrestrictedR)/45
+fStat <- num/denom
+fStat
+```
+Using the results from the table above, with a degree of freedom of 1 for the numerator and 45 degrees of freedom for the denominator, our critical F-value is 4.08. Our F-statistic of -0.629 falls into the acceptance region and thus we have insufficient evidence to reject the null hypothesis that the difference in weekend box office gross of a Best Picture nominated movie is a linear function of the days between its release date and nomination date.
+
+**Testing for outliers**
+
+To further strengthen the prediction power of our model, we shall look for potential outliers and determine if they are influencing our model's prediction of the difference in weekend gross after a film has been nominated for Best Picture.
+
+```{r, echo=FALSE,fig.height=3}
+plot(finalModel.lm, which=4) 
+```
+From the Cook's Distance plot above, the movies American Hustle, Get Out and Bohemian Rhapsody seem to be biggest outliers. However, all three of these films did not see an abnormally large increase in their weekend box office gross after securing a nomination. Additionally, all three of these films saw an increase of around 300 theaters, which is close to the average theater increase for a film after it has secured a Best Picture nomination and also largely explains their increase in weekend box office gross post nomination. Thus, as all 3 outliers saw a relatively standard increase in weekend box office gross post nomination due to a approximately average increase in theater screenings, they will be kept in the model. 
+
+We shall also examine whether the model is homoscedastic, as our presumptions of being able to use a linear regression model for modeling the difference in weekend box office gross after Oscar nominations have been announced rest on the assumption that our model is homoscedastic. 
+
+**Testing for Heteroscadisticity**
+
+```{r, echo=FALSE}
+finalModel.aug <- augment(finalModel.lm)
+```
+
+```{r, echo=FALSE,fig.height=3}
+ggplot(finalModel.aug, aes(x = difference_weekend_gross, y = .resid)) + geom_point() + geom_hline(yintercept = 0, linetype= "dashed")
+```
+As our final model has 6 explanatory variables, it would have been difficult to conduct a White test for heteroscedasticity and thus, we will use the plot above to diagnose if our model has heteroscedasticity. From the plot above, the residuals indicate the model is approximately homoscedastic, with the exception of the 5 outliers past the $3000000 difference in weekend gross mark. There is a similar magnitude of scatter along the 0-reference line as we move along the x-axis.
+
+
+**Testing for Multicolliearity**
+
+In order to determine if multicollinearity is a problem within our final model we will be using two indicators. The first will be the using the Variance Inflation Factors with a threshold of 4 to determine if there is multicollinearity. As can be seen below, our final model does not have any variables which violate this parameter. The second method we will be using to diagnose the presence of multicollinearity is a pairwise correlation matrix, Table 5 in the Tables section, which shows that there is no concerning pair of variables. We can therefore conclude that multicollinearity is not a problem for our final problem. This is a significant improvement on the pairwise correlations from our initial model, which can be found in Table 4 in the Tables section.
+
+Table 2: Variance Inflation Factors in our Final Model:
+```{r, echo=FALSE}
+vif(finalModel.lm)
+```
+
+\begin{center}
+\textbf{Results and Findings}
+\end{center}
+
+
+After performing our model specifications and diagnostics, we can conclude that our final model for modeling the difference in weekend box office gross after movies have secured a Best Picture nomination is:
+
+\begin{center}
+Difference in Weekend gross 
+= $1623.47 -3.61*Days + 1.59*$Theater change $ -622.23*IMDb$ score $ -311.4*log(budget)$ + $ 490.60*$log(Worldwide gross) $+ 12.65*Metascore$ 
+\end{center}
+
+The following table shows the regression results of our initial model next to our final model.
+
+\newpage
+```{r, results='asis', echo=FALSE}
+stargazer(initial.lm, finalModel.lm, title = "Initial and Final Model Summaries",covariate.labels = c("Winner", "Days Between", "Change in theaters", "Avg IMDb score", "log(Budget)", "log(Lifetime worldwide gross)", "Metascore", "Avg vote from IMDb consumers under 18","Avg vote from IMDb consumers between 18 and 30", "Avg vote from IMDb consumers between 30 and 45", "Avg vote from IMDb consumers over 45"), dep.var.labels = ("Difference in weekend gross"), column.labels = c("Initial", "Final"), type = "latex")
+```
+
+Thus, the difference in a movie's weekend box office gross post nomination is dependent on the number of days elasped between its release and nomination dates, change in number of theaters screening it, IMDb score, budget, worldwide box office gross and Metascore. Additionally, holding all the explanatory variables constant, a movie securing a Best Picture nomination means it stands to increase its following weekend box office gross by (1000)(1623.47) = $1623470. \newline
+
+\begin{center}
+\textbf{Discussion}
+\end{center}
+
+As presented above, the intercept of our model predicts the immediate monetary effect of the Best Picture Oscar nomination to be $1623470, when all other explanatory variables in our final model are controlled. The drawback to our model is the large standard error on our intercept value (2379063). This is likely due to the large variance present in the dependent variable of our model. Although we do not think that the final model is underfit in relation to the initial model as each predictor which we removed had theoretical and statistical justification, we believe that our initial model may have excluded relevant variables which were not included in our dataset. An example of an important relevant variable we did not examine was second weekend box office performance. The advent of the internet and social media has made it easier for consumers to “read more reviews…and hear what other audiences think.” (Anderson, 2008). Thus, present-day movies suffer from far steeper second weekend box office drops than their 20th century counterparts, with the average second weekend box office drop increasing from “less than 30 percent...to more than 50 percent” (Anderson, 2008). As a result, a movie’s second weekend box office performance is often a very strong predictor of its lifetime box office potential and is worth examining for future analyses. 
+
+For future studies, it would also be worthwhile to test for the significance of a larger number of initial explanatory variables in order to build a more comprehensive model. Our exploration does show that an Oscar nomination has a monetary impact on a film’s immediate box office gross, and a future study could explore the effect of a Best Picture nomination on the film’s lifetime Worldwide box office gross income. It would also be an interesting study to see how the impact of a Best Picture Oscar Nomination changes each year as streaming services become more prevalent and the film industry diversifies how movies are released to the public. 
+
+
+\begin{center}
+\textbf{Conclusions}
+\end{center}
+
+In conclusion, we found that a Best Picture nomination increases a movie’s weekend box office gross by $1,623,470. Additionally, we found the variables detailing the days between a movie’s release and nomination dates, change in theaters screening a movie post-nomination, budget, worldwide box office gross, Metascore and IMDb rating to be statistically and economically significant in predicting a movie’s weekend box office gross after securing a Best Picture nomination. 
+
+However, as discussed above, our estimate of the monetary impact a Best Picture nomination has on a movie’s weekend box office gross has a large standard error and thus, can be significantly improved upon. For future analyses, we recommend incorporating and investigating additional explanatory variables such as second weekend box office performance to better predict the monetary impact of a Best Picture nomination. 
+
+
+\begin{center}
+\textbf{Tables}
+\end{center}
+
+```{r,echo=FALSE}
+bestPicsubset <- oscarBestPicNoms %>% select(difference_weekend_gross, days_between, `Theater change`, avg_vote, worlwide_gross_income, metascore, allgenders_0age_avg_vote, allgenders_18age_avg_vote, allgenders_30age_avg_vote, allgenders_45age_avg_vote)
+bestPicsubsetFrame <- as.data.frame(bestPicsubset)
+```
+
+```{r, results='asis', echo=FALSE}
+stargazer(bestPicsubsetFrame)
+```
+
+Table 4: Variance Inflation Factors in our Initial Model:
+
+```{r, echo=FALSE}
+vif(initial.lm) 
+```
+
+```{r, echo=FALSE, results='hide'}
+finaldataset <- oscarBestPicNoms %>% select(days_between,`Theater change`,avg_vote, logBudget,logGross,metascore)
+correlation.matrix <- cor(finaldataset)
+correlation.matrix
+```
+Table 5: Pairwise Correlation Matrix
+```{r, echo=FALSE}
+correlation.matrix
+```
+
+\begin{center}
+\textbf{Bibliography}
+\end{center}
+
+1) The Long Tail: Why the Future of Business Is Selling Less of More, by Chris Anderson, Hyperion, 2006, p. 233. 
+
+2) McClintock, Pamela. “Average Movie Ticket Price for 2010 Was $7.89.” The Hollywood Reporter, 28 Jan. 2011. 
+www.hollywoodreporter.com/news/average-movie-ticket-price-2010-94123. 
+
+3) Kennedy, Alec. Predicting Box Office Success: Do Critical Reviews Really Matter? www.stat.berkeley.edu/users/aldous/157/Old_Projects/kennedy.pdf. 
+
+4) “Glossary of Movie Business Terms.” The Numbers, www.the-numbers.com/glossary. 
+
+5) Kaggle, www.kaggle.com/stefanoleone992/imdb-extensive-dataset. 
+
+6) “All-Time Charts.” Box Office Mojo, www.boxofficemojo.com/charts/weekend/?ref_=bo_nb_cso_secondarytab. 
+
